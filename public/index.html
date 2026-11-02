@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quizzy — играй вместе!</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root { --ink:#27234a; --pink:#ff6eb4; --purple:#8067f5; --yellow:#ffd84d; --blue:#55c7f2; --green:#55d6a0; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font-family:Nunito,system-ui,sans-serif; color:var(--ink);
+      background:radial-gradient(circle at 10% 5%,#fff3a8 0,transparent 25%),radial-gradient(circle at 90% 10%,#ffd7ed 0,transparent 28%),linear-gradient(135deg,#e7e5ff,#e0f8ff 55%,#fff0dc); }
+    button,input { font:inherit; }
+    button { border:0; cursor:pointer; font-weight:900; border-radius:16px; padding:13px 20px; color:white; background:var(--purple); box-shadow:0 5px 0 #5b48c6; transition:.12s transform,.12s box-shadow; }
+    button:active { transform:translateY(4px); box-shadow:0 1px 0 #5b48c6; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .wrap { width:min(1000px,92vw); margin:0 auto; padding:28px 0 55px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:28px; }
+    .logo { font-size:clamp(32px,6vw,54px); font-weight:1000; letter-spacing:-2px; color:var(--purple); text-shadow:3px 3px 0 white; }
+    .logo span { color:var(--pink); }
+    .tag { background:white; border-radius:999px; padding:8px 14px; font-weight:900; box-shadow:0 3px 0 #d9d4f4; }
+    .panel { background:rgba(255,255,255,.88); border:3px solid white; border-radius:28px; padding:clamp(20px,4vw,36px); box-shadow:0 14px 35px #51449a18; }
+    .hero { text-align:center; }
+    h1 { font-size:clamp(28px,5vw,42px); margin:0 0 8px; line-height:1.1; }
+    h2 { margin:0 0 12px; font-size:25px; }
+    p { color:#706b91; font-weight:700; }
+    .mascots { font-size:clamp(34px,7vw,58px); letter-spacing:5px; margin:15px 0; }
+    .actions { display:flex; flex-wrap:wrap; justify-content:center; gap:14px; margin-top:25px; }
+    .pink { background:var(--pink); box-shadow:0 5px 0 #d94d91; }
+    .yellow { background:var(--yellow); color:#57430a; box-shadow:0 5px 0 #d4a928; }
+    .blue { background:var(--blue); color:#16465a; box-shadow:0 5px 0 #2796c1; }
+    .green { background:var(--green); color:#15583d; box-shadow:0 5px 0 #2aa875; }
+    .hidden { display:none!important; }
+    .field { display:block; width:100%; padding:14px 16px; border:2px solid #e4e0fa; border-radius:14px; background:#fff; outline:none; margin:9px 0 16px; font-weight:800; color:var(--ink); }
+    .field:focus { border-color:var(--purple); }
+    .form { max-width:470px; margin:0 auto; text-align:left; }
+    label { font-weight:900; }
+    .avatar-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:10px 0 20px; }
+    .avatar { background:#f3f0ff; color:var(--ink); box-shadow:none; border:2px solid transparent; padding:9px 2px; font-size:27px; }
+    .avatar.selected { border-color:var(--pink); background:#ffe5f2; box-shadow:0 3px 0 #efafd0; }
+    .room-top { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:18px; }
+    .pin { font-size:clamp(34px,7vw,54px); font-weight:1000; letter-spacing:8px; color:var(--purple); }
+    .qrbox { background:white; padding:12px; border-radius:18px; display:inline-block; border:2px solid #eeeaff; }
+    #qr { width:150px; height:150px; }
+    .players { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin:18px 0; }
+    .player-chip { background:#f3f0ff; border-radius:16px; padding:12px; font-weight:900; text-align:center; }
+    .player-chip b { display:block; font-size:30px; }
+    .question-card { text-align:center; }
+    .progress { height:12px; background:#eeeaff; border-radius:20px; overflow:hidden; margin:18px 0; }
+    .bar { height:100%; width:100%; background:linear-gradient(90deg,var(--green),var(--yellow),var(--pink)); transition:width 1s linear; }
+    .answer-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:22px; }
+    .answer { min-height:76px; border-radius:18px; padding:15px; font-size:17px; text-align:left; box-shadow:0 5px 0 #0002; }
+    .answer:nth-child(1){background:#ff6b8b;box-shadow:0 5px 0 #d94768}
+    .answer:nth-child(2){background:#8067f5;box-shadow:0 5px 0 #5945c5}
+    .answer:nth-child(3){background:#39bce8;box-shadow:0 5px 0 #168db5}
+    .answer:nth-child(4){background:#f4b832;color:#493600;box-shadow:0 5px 0 #c58d17}
+    .answer:disabled { opacity:.72; }
+    .feedback { font-size:24px; font-weight:1000; margin:18px 0; }
+    .rank-row { display:flex; align-items:center; gap:12px; background:#f5f2ff; border-radius:16px; padding:12px 16px; margin:8px 0; font-weight:900; }
+    .rank-num { font-size:24px; width:38px; }
+    .rank-name { flex:1; }
+    .rank-score { color:var(--purple); }
+    .note { font-size:13px; color:#817c9f; text-align:center; margin-top:18px; }
+    .error { color:#d93464; font-weight:900; min-height:22px; }
+    @media(max-width:560px){ .answer-grid{grid-template-columns:1fr;} .avatar-grid{grid-template-columns:repeat(4,1fr);} header{align-items:flex-start;} }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="logo">Quiz<span>zy</span> ✦</div><div class="tag">🎉 Играй. Отвечай. Побеждай.</div></header>
+
+  <section id="home" class="panel hero">
+    <div class="mascots">🐸 🐼 🦊 🐙 🐱 🦄</div>
+    <h1>Готов к битве умов?</h1>
+    <p>Создай комнату или присоединяйся к друзьям. Самый быстрый и внимательный заберёт победу!</p>
+    <div class="actions">
+      <button onclick="show('hostSetup')">✨ Создать игру</button>
+      <button class="pink" onclick="show('joinSetup')">🚀 Присоединиться</button>
+    </div>
+    <div class="note">Первая версия Quizzy • Комнаты работают в реальном времени</div>
+  </section>
+
+  <section id="hostSetup" class="panel hidden">
+    <div class="form">
+      <h2>✨ Создаём игру</h2>
+      <label for="gameTitle">Название викторины</label>
+      <input id="gameTitle" class="field" value="Эмоциональное переедание">
+      <p>Пока доступна демо-викторина из 5 вопросов. В следующих версиях добавим редактор своих вопросов.</p>
+      <button onclick="createRoom()">Создать комнату →</button>
+      <button class="yellow" onclick="show('home')">Назад</button>
+      <div id="hostError" class="error"></div>
+    </div>
+  </section>
+
+  <section id="joinSetup" class="panel hidden">
+    <div class="form">
+      <h2>🚀 Вход в игру</h2>
+      <label for="pin">PIN-код комнаты</label>
+      <input id="pin" class="field" inputmode="numeric" maxlength="6" placeholder="Например, 482193">
+      <label for="nickname">Твой никнейм</label>
+      <input id="nickname" class="field" maxlength="18" placeholder="Как тебя называть?">
+      <label>Выбери персонажа</label>
+      <div id="avatarGrid" class="avatar-grid"></div>
+      <button class="pink" onclick="joinRoom()">Войти в Quizzy →</button>
+      <button class="yellow" onclick="show('home')">Назад</button>
+      <div id="joinError" class="error"></div>
+    </div>
+  </section>
+
+  <section id="hostRoom" class="panel hidden">
+    <div class="room-top">
+      <div><div class="tag">КОМНАТА ДЛЯ ИГРОКОВ</div><div id="hostPin" class="pin">------</div><p id="hostTitle"></p></div>
+      <div class="qrbox"><div id="qr"></div></div>
+    </div>
+    <h2>👾 Игроки подключаются…</h2>
+    <div id="hostPlayers" class="players"></div>
+    <button id="startButton" onclick="startGame()">Начать игру 🚀</button>
+    <p class="note">Покажи QR-код или PIN-код на экране. Игроки могут подключиться с телефонов.</p>
+  </section>
+
+  <section id="playerLobby" class="panel hero hidden">
+    <div class="mascots">🎈 🎮 🎈</div>
+    <h1>Ты в игре!</h1>
+    <div id="myIdentity" class="feedback"></div>
+    <p>Ждём ведущего. Скоро начнётся викторина!</p>
+    <div id="lobbyCount" class="tag"></div>
+  </section>
+
+  <section id="hostQuestion" class="panel question-card hidden">
+    <div class="tag">ВЕДУЩИЙ • ВОПРОС <span id="hostQNum"></span></div>
+    <h1 id="hostQuestionText" style="margin-top:18px"></h1>
+    <div class="progress"><div id="hostBar" class="bar"></div></div>
+    <p id="hostAnswerCount">Ответили: 0</p>
+    <div id="hostLivePlayers" class="players"></div>
+    <p class="note">Когда время закончится, появится таблица лидеров.</p>
+  </section>
+
+  <section id="playerQuestion" class="panel question-card hidden">
+    <div class="tag">ВОПРОС <span id="playerQNum"></span></div>
+    <h1 id="playerQuestionText" style="margin-top:18px"></h1>
+    <div class="progress"><div id="playerBar" class="bar"></div></div>
+    <div id="answers" class="answer-grid"></div>
+    <div id="playerFeedback" class="feedback"></div>
+  </section>
+
+  <section id="leaderboard" class="panel hidden">
+    <div class="hero"><div class="mascots">🏆 ✨ 🏆</div><h1>Таблица лидеров</h1><p>Кто набрал больше баллов?</p></div>
+    <div id="rankings"></div>
+    <div class="hero" style="margin-top:22px"><button id="nextButton" onclick="nextQuestion()">Следующий вопрос →</button></div>
+  </section>
+
+  <section id="finished" class="panel hero hidden">
+    <div class="mascots">🎊 🏆 🎊</div><h1>Игра окончена!</h1><h2 id="winnerText"></h2>
+    <div id="finalRankings"></div>
+    <button onclick="location.href='/'">Сыграть ещё раз</button>
+  </section>
+  <section id="closed" class="panel hero hidden"><h1>Комната закрыта</h1><p>Ведущий завершил игру или отключился.</p><button onclick="location.href='/'">На главную</button></section>
+</div>
+<script>
+const socket = io();
+const avatars = ["🐸","🐼","🦊","🐱","🐻","🐙","🦄","🐵","🐧","🐨","🦋","🐯","🐰","🐲","🐹","🦖","🐝","🐺"];
+let selectedAvatar = "🐸", role = null, roomCode = null, latestRoom = null, hasAnswered = false, timerInterval = null;
+
+function show(id) {
+  document.querySelectorAll("body > .wrap > section").forEach(s => s.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+}
+function makeAvatarPicker() {
+  const grid = document.getElementById("avatarGrid");
+  grid.innerHTML = "";
+  avatars.forEach(a => {
+    const b = document.createElement("button");
+    b.className = "avatar" + (a === selectedAvatar ? " selected" : "");
+    b.textContent = a;
+    b.onclick = () => { selectedAvatar = a; makeAvatarPicker(); };
+    grid.appendChild(b);
+  });
+}
+makeAvatarPicker();
+
+function createRoom() {
+  document.getElementById("hostError").textContent = "";
+  socket.emit("createRoom", { title: document.getElementById("gameTitle").value }, result => {
+    if (!result?.ok) return document.getElementById("hostError").textContent = "Не удалось создать комнату.";
+    role = "host"; roomCode = result.code; latestRoom = result.room;
+    document.getElementById("hostPin").textContent = roomCode;
+    document.getElementById("hostTitle").textContent = latestRoom.title;
+    const joinUrl = `${location.origin}/?room=${roomCode}`;
+    document.getElementById("qr").innerHTML = "";
+    if (window.QRCode) new QRCode(document.getElementById("qr"), { text: joinUrl, width:150, height:150, correctLevel:QRCode.CorrectLevel.M });
+    else document.getElementById("qr").textContent = "QR недоступен";
+    show("hostRoom"); renderRoom(latestRoom);
+  });
+}
+function joinRoom() {
+  document.getElementById("joinError").textContent = "";
+  socket.emit("joinRoom", { code:document.getElementById("pin").value, name:document.getElementById("nickname").value, avatar:selectedAvatar }, result => {
+    if (!result?.ok) return document.getElementById("joinError").textContent = result?.error || "Ошибка подключения.";
+    role = "player"; roomCode = result.room.code; latestRoom = result.room;
+    document.getElementById("myIdentity").textContent = `${selectedAvatar} ${document.getElementById("nickname").value}`;
+    show("playerLobby"); renderRoom(latestRoom);
+  });
+}
+function renderRoom(room) {
+  latestRoom = room;
+  if (role === "host") {
+    document.getElementById("hostPlayers").innerHTML = room.players.map(p => `<div class="player-chip"><b>${p.avatar}</b>${escapeHtml(p.name)}</div>`).join("") || "<p>Пока никого нет — покажи QR-код!</p>";
+    document.getElementById("startButton").disabled = room.players.length === 0;
+    document.getElementById("hostAnswerCount").textContent = `Ответили: ${room.answerCount} / ${room.players.length}`;
+    document.getElementById("hostLivePlayers").innerHTML = room.players.map(p => `<div class="player-chip"><b>${p.avatar}</b>${escapeHtml(p.name)}<br>${p.score} баллов</div>`).join("");
+  } else {
+    document.getElementById("lobbyCount").textContent = `Игроков в комнате: ${room.players.length}`;
+  }
+  if (room.phase === "question") {
+    if (role === "host") {
+      show("hostQuestion");
+      document.getElementById("hostQNum").textContent = `${room.questionIndex+1}/${room.questionCount}`;
+      document.getElementById("hostQuestionText").textContent = room.currentQuestion.question;
+      startVisualTimer();
+    } else if (!hasAnswered) {
+      show("playerQuestion");
+      document.getElementById("playerQNum").textContent = `${room.currentQuestion.number}/${room.questionCount}`;
+      document.getElementById("playerQuestionText").textContent = room.currentQuestion.question;
+      document.getElementById("answers").innerHTML = room.currentQuestion.answers.map((a,i) => `<button class="answer" onclick="answer(${i})">${escapeHtml(a)}</button>`).join("");
+      startVisualTimer();
+    }
+  } else if (room.phase === "leaderboard") {
+    clearInterval(timerInterval);
+    show("leaderboard");
+    renderRankings(room.players, "rankings");
+    document.getElementById("nextButton").textContent = room.questionIndex + 1 >= room.questionCount ? "Показать победителя 🏆" : "Следующий вопрос →";
+    document.getElementById("nextButton").classList.toggle("hidden", role !== "host");
+    if (role === "player") document.getElementById("nextButton").classList.add("hidden");
+  } else if (room.phase === "finished") {
+    show("finished");
+    const winner = room.players[0];
+    document.getElementById("winnerText").textContent = winner ? `Победитель: ${winner.avatar} ${winner.name}!` : "Спасибо за игру!";
+    renderRankings(room.players, "finalRankings");
+  }
+}
+function answer(index) {
+  document.querySelectorAll("#answers button").forEach(b => b.disabled = true);
+  socket.emit("submitAnswer", { answerIndex:index }, result => {
+    if (!result?.ok) return;
+    hasAnswered = true;
+    document.getElementById("playerFeedback").textContent = result.correct ? `Верно! +${result.points} баллов 🎉` : "Не совсем! Попробуй в следующем вопросе 💪";
+    document.getElementById("playerFeedback").style.color = result.correct ? "#1a9b68" : "#d93464";
+  });
+}
+function startVisualTimer() {
+  clearInterval(timerInterval);
+  const start = Date.now(), duration = 15000;
+  const update = () => {
+    const left = Math.max(0, 1 - (Date.now()-start)/duration);
+    document.getElementById("playerBar").style.width = (left*100)+"%";
+    document.getElementById("hostBar").style.width = (left*100)+"%";
+  };
+  update(); timerInterval = setInterval(update,100);
+}
+function renderRankings(players, target) {
+  const medals = ["🥇","🥈","🥉"];
+  document.getElementById(target).innerHTML = players.map((p,i) => `<div class="rank-row"><span class="rank-num">${medals[i] || (i+1)+"."}</span><span style="font-size:27px">${p.avatar}</span><span class="rank-name">${escapeHtml(p.name)}</span><span class="rank-score">${p.score} pts</span></div>`).join("") || "<p>Пока нет игроков.</p>";
+}
+function startGame() { socket.emit("startGame"); }
+function nextQuestion() { hasAnswered = false; socket.emit("nextQuestion"); }
+function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+socket.on("roomUpdate", room => {
+  if (!roomCode || room.code !== roomCode) return;
+  if (room.phase === "question" && latestRoom?.phase !== "question") hasAnswered = false;
+  renderRoom(room);
+});
+socket.on("roomClosed", () => show("closed"));
+
+const params = new URLSearchParams(location.search);
+if (params.get("room")) {
+  document.getElementById("pin").value = params.get("room");
+  show("joinSetup");
+}
+</script>
+</body>
+</html>
